@@ -5,6 +5,3 @@ scikit-learn==1.4.0
 plotly==5.18.0
 seaborn==0.13.2
 matplotlib==3.8.2
-
-run:
-python3 -m streamlit run app.py 
