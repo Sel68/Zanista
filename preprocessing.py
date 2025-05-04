@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 import io
-import streamlit as st 
+import streamlit as st
 
 
 def read_file(uploaded_file):
@@ -10,49 +10,54 @@ def read_file(uploaded_file):
     name = uploaded_file.name
     df = None
 
-    #Allow multiple extensions
+    # Allow multiple extensions
     try:
-        if name.endswith('.csv'):
+        if name.endswith(".csv"):
             # Try standard UTF-8 first, then latin1 as fallback
             try:
                 df = pd.read_csv(uploaded_file)
             except UnicodeDecodeError:
-                uploaded_file.seek(0) # Rewind file before trying again
-                df = pd.read_csv(uploaded_file, encoding='latin1')
-        elif name.endswith('.json'):
+                uploaded_file.seek(0)  # Rewind file before trying again
+                df = pd.read_csv(uploaded_file, encoding="latin1")
+        elif name.endswith(".json"):
             df = pd.read_json(uploaded_file)
-        elif name.endswith(('.xls', '.xlsx')):
-            engine = 'openpyxl' if name.endswith('.xlsx') else 'xlrd'
+        elif name.endswith((".xls", ".xlsx")):
+            engine = "openpyxl" if name.endswith(".xlsx") else "xlrd"
             df = pd.read_excel(uploaded_file, engine=engine)
         else:
-            st.error(f"Unsupported file type: {name}. Please upload CSV, JSON, XLS, or XLSX.")
-            return None # Return None for unsupported types
+            st.error(
+                f"Unsupported file type: {name}. Please upload CSV, JSON, XLS, or XLSX."
+            )
+            return None  # Return None for unsupported types
     except Exception as e:
         st.error(f"Error reading file '{name}': {e}")
-        return None # Return None on read error
+        return None  # Return None on read error
 
     # Basic cleaning: remove fully empty rows/columns
     if df is not None:
-        df.dropna(axis=0, how='all', inplace=True)
-        df.dropna(axis=1, how='all', inplace=True)
+        df.dropna(axis=0, how="all", inplace=True)
+        df.dropna(axis=1, how="all", inplace=True)
         if df.empty:
-            st.warning("File loaded successfully, but it appears to be empty after removing blank rows/columns.")
+            st.warning(
+                "File loaded successfully, but it appears to be empty after removing blank rows/columns."
+            )
             return None
     return df
 
+
 def generate_eda_report(df):
     # Basic EDA summary
-    report = {'basic_info': {}, 'column_analysis': {}}
+    report = {"basic_info": {}, "column_analysis": {}}
     buffer = io.StringIO()
     df.info(buf=buffer)
     info_str = buffer.getvalue()
 
-    report['basic_info'] = {
-        'Rows': len(df),
-        'Columns': len(df.columns),
-        'Duplicate Rows': df.duplicated().sum(),
-        'Total Missing Values': df.isnull().sum().sum(),
-        'DataFrame Info': info_str # Renamed for clarity
+    report["basic_info"] = {
+        "Rows": len(df),
+        "Columns": len(df.columns),
+        "Duplicate Rows": df.duplicated().sum(),
+        "Total Missing Values": df.isnull().sum().sum(),
+        "DataFrame Info": info_str,  # Renamed for clarity
     }
 
     # Analyze each column
@@ -64,25 +69,30 @@ def generate_eda_report(df):
         unique_count = data.nunique()
 
         stats_dict = {
-            'Data Type': str(data.dtype),
-            'Missing Values': f"{missing_count} ({missing_pct:.1f}%)",
-            'Unique Values': unique_count
+            "Data Type": str(data.dtype),
+            "Missing Values": f"{missing_count} ({missing_pct:.1f}%)",
+            "Unique Values": unique_count,
         }
 
         # Add type-specific stats
         if pd.api.types.is_numeric_dtype(data):
-            stats_dict.update(get_descriptive_stats(data.dropna())) # Use dropna for stats
+            stats_dict.update(
+                get_descriptive_stats(data.dropna())
+            )  # Use dropna for stats
         elif pd.api.types.is_datetime64_any_dtype(data):
-            stats_dict.update({'Minimum Date': data.min(), 'Maximum Date': data.max()})
-        elif pd.api.types.is_object_dtype(data) or pd.api.types.is_categorical_dtype(data):
+            stats_dict.update({"Minimum Date": data.min(), "Maximum Date": data.max()})
+        elif pd.api.types.is_object_dtype(data) or pd.api.types.is_categorical_dtype(
+            data
+        ):
             # Show top 5 most frequent values
             top_5 = data.value_counts().head(5).to_dict()
-            stats_dict['Top 5 Values'] = top_5 if top_5 else "N/A"
+            stats_dict["Top 5 Values"] = top_5 if top_5 else "N/A"
 
         col_summaries[col] = stats_dict
 
-    report['column_analysis'] = col_summaries
+    report["column_analysis"] = col_summaries
     return report
+
 
 def handle_missing_values(df, strategy_dict):
     # Fills or drops missing values based on strategy per column
@@ -93,27 +103,32 @@ def handle_missing_values(df, strategy_dict):
     for column, strat in strategy_dict.items():
         if column not in df_processed.columns:
             st.warning(f"Column '{column}' not found for handling missing values.")
-            continue # Skip if column doesn't exist
+            continue  # Skip if column doesn't exist
 
-        method = strat.get('method')
-        if method == 'drop':
+        method = strat.get("method")
+        if method == "drop":
             df_processed.dropna(subset=[column], inplace=True)
             columns_processed.append(column)
-        elif method == 'fill':
-            fill_val = strat.get('value')
+        elif method == "fill":
+            fill_val = strat.get("value")
             # Basic type check for fill value if needed, though None usually works
             if fill_val is not None:
                 df_processed[column].fillna(fill_val, inplace=True)
                 columns_processed.append(column)
             else:
-                 st.warning(f"No fill value provided for column '{column}'. Skipping fill.")
+                st.warning(
+                    f"No fill value provided for column '{column}'. Skipping fill."
+                )
         else:
-            st.warning(f"Unknown missing value strategy '{method}' for column '{column}'.")
+            st.warning(
+                f"Unknown missing value strategy '{method}' for column '{column}'."
+            )
 
     rows_dropped = rows_before - len(df_processed)
     if not columns_processed:
         st.info("No missing value operations were performed.")
     return df_processed, rows_dropped
+
 
 def remove_outliers(df, columns, threshold=3.0):
     # Removes rows where the Z-score in specified numeric columns exceeds the threshold
@@ -125,10 +140,17 @@ def remove_outliers(df, columns, threshold=3.0):
         st.warning("No columns selected for outlier removal.")
         return df_processed, 0
 
-    numeric_columns_found = [col for col in columns if col in df_processed.columns and pd.api.types.is_numeric_dtype(df_processed[col])]
+    numeric_columns_found = [
+        col
+        for col in columns
+        if col in df_processed.columns
+        and pd.api.types.is_numeric_dtype(df_processed[col])
+    ]
 
     if not numeric_columns_found:
-        st.warning("None of the selected columns are numeric. Cannot remove outliers based on Z-score.")
+        st.warning(
+            "None of the selected columns are numeric. Cannot remove outliers based on Z-score."
+        )
         return df_processed, 0
 
     for col in numeric_columns_found:
@@ -141,16 +163,20 @@ def remove_outliers(df, columns, threshold=3.0):
             col_outlier_indices = numeric_data.index[z_scores >= threshold]
             outlier_indices.update(col_outlier_indices)
         elif len(numeric_data) <= 1:
-            st.info(f"Skipping outlier check for '{col}': Not enough non-NA data points.")
-        else: # std == 0
-            st.info(f"Skipping outlier check for '{col}': All values are the same (zero standard deviation).")
-
+            st.info(
+                f"Skipping outlier check for '{col}': Not enough non-NA data points."
+            )
+        else:  # std == 0
+            st.info(
+                f"Skipping outlier check for '{col}': All values are the same (zero standard deviation)."
+            )
 
     if outlier_indices:
         df_processed.drop(index=list(outlier_indices), inplace=True)
 
     rows_removed = initial_rows - len(df_processed)
     return df_processed, rows_removed
+
 
 def scale_by_factor(df, columns, factor):
     # Multiplies specified numeric columns by a factor
@@ -161,10 +187,10 @@ def scale_by_factor(df, columns, factor):
         return df_processed
 
     try:
-        k = float(factor) # Ensure factor is numeric
+        k = float(factor)  # Ensure factor is numeric
     except (ValueError, TypeError):
         st.error(f"Invalid scaling factor '{factor}'. Please enter a number.")
-        return df # Return original df on error
+        return df  # Return original df on error
 
     scaled_count = 0
     for col in columns:
@@ -182,54 +208,68 @@ def scale_by_factor(df, columns, factor):
 
     return df_processed
 
+
 def change_column_type(df, column_name, target_type):
     # Converts a column to the specified target type
     df_processed = df.copy()
 
     if column_name not in df_processed.columns:
         st.error(f"Column '{column_name}' not found.")
-        return df, 0 # Return original df
+        return df, 0  # Return original df
 
     original_series = df_processed[column_name]
     initial_na = original_series.isna().sum()
     converted_series = None
 
     try:
-        if 'Numeric (Float)' in target_type:
-            converted_series = pd.to_numeric(original_series, errors='coerce')
-        elif 'Numeric (Integer)' in target_type:
+        if "Numeric (Float)" in target_type:
+            converted_series = pd.to_numeric(original_series, errors="coerce")
+        elif "Numeric (Integer)" in target_type:
             # Convert to float first, then try Int64 if no NaNs introduced and values are whole numbers
-            numeric_temp = pd.to_numeric(original_series, errors='coerce')
-            if numeric_temp.notna().all() and (numeric_temp == numeric_temp.round(0)).all():
+            numeric_temp = pd.to_numeric(original_series, errors="coerce")
+            if (
+                numeric_temp.notna().all()
+                and (numeric_temp == numeric_temp.round(0)).all()
+            ):
                 # Use pandas nullable integer type
                 converted_series = numeric_temp.astype(pd.Int64Dtype())
             else:
                 # Keep as float if conversion to int isn't clean (contains NaNs or decimals)
                 converted_series = numeric_temp
                 if numeric_temp.isna().sum() > initial_na:
-                    st.warning("Some values could not be converted to numeric and became NaN.")
+                    st.warning(
+                        "Some values could not be converted to numeric and became NaN."
+                    )
                 elif not (numeric_temp == numeric_temp.round(0)).all():
                     st.warning("Column contains non-integer values. Keeping as float.")
 
-        elif 'Text (String)' in target_type:
+        elif "Text (String)" in target_type:
             # Convert all to string, fill NA with empty string perhaps? Or keep as NA? Let's keep NA.
             converted_series = original_series.astype(str)
-        elif 'Category' in target_type:
-            converted_series = original_series.astype('category')
-        elif 'Date/Time' in target_type:
-            converted_series = pd.to_datetime(original_series, errors='coerce')
+        elif "Category" in target_type:
+            converted_series = original_series.astype("category")
+        elif "Date/Time" in target_type:
+            converted_series = pd.to_datetime(original_series, errors="coerce")
         else:
             st.error(f"Unsupported target type: {target_type}")
-            return df, 0 # Return original df
+            return df, 0  # Return original df
 
         # Assign the converted series back
         df_processed[column_name] = converted_series
         # Calculate how many new NaNs were introduced (only relevant for numeric/datetime)
-        failed_conversions = max(0, converted_series.isna().sum() - initial_na) if pd.api.types.is_numeric_dtype(converted_series.dtype) or pd.api.types.is_datetime64_any_dtype(converted_series.dtype) else 0
+        failed_conversions = (
+            max(0, converted_series.isna().sum() - initial_na)
+            if pd.api.types.is_numeric_dtype(converted_series.dtype)
+            or pd.api.types.is_datetime64_any_dtype(converted_series.dtype)
+            else 0
+        )
 
     except Exception as e:
         st.error(f"Error converting column '{column_name}' to {target_type}: {e}")
-        return df, original_series.isna().sum() # Return original df and original NA count on error
+        return (
+            df,
+            original_series.isna().sum(),
+        )  # Return original df and original NA count on error
 
     return df_processed, failed_conversions
 
@@ -247,30 +287,29 @@ def get_descriptive_stats(series):
 
     # Calculate mode, handle multi-modal cases (report first mode)
     mode_val = series.mode()
-    stats_dict['Mode'] = mode_val.iloc[0] if not mode_val.empty else 'N/A'
+    stats_dict["Mode"] = mode_val.iloc[0] if not mode_val.empty else "N/A"
 
     # Rename '50%' to 'Median' for clarity, remove 'count' as it's less useful here
-    if '50%' in stats_dict:
-        stats_dict['Median'] = stats_dict.pop('50%')
-    if 'count' in stats_dict:
-        stats_dict.pop('count') # Remove count from this specific view
-    if 'std' in stats_dict:
-        stats_dict['Std Dev'] = stats_dict.pop('std')
-    if 'mean' in stats_dict:
-        stats_dict['Mean'] = stats_dict.pop('mean')
-    if 'min' in stats_dict:
-        stats_dict['Min'] = stats_dict.pop('min')
-    if 'max' in stats_dict:
-        stats_dict['Max'] = stats_dict.pop('max')
+    if "50%" in stats_dict:
+        stats_dict["Median"] = stats_dict.pop("50%")
+    if "count" in stats_dict:
+        stats_dict.pop("count")  # Remove count from this specific view
+    if "std" in stats_dict:
+        stats_dict["Std Dev"] = stats_dict.pop("std")
+    if "mean" in stats_dict:
+        stats_dict["Mean"] = stats_dict.pop("mean")
+    if "min" in stats_dict:
+        stats_dict["Min"] = stats_dict.pop("min")
+    if "max" in stats_dict:
+        stats_dict["Max"] = stats_dict.pop("max")
     # Keep 25% and 75% quartiles if present
-
 
     # Simple formatting for display (optional, could be done in UI)
     formatted_stats = {}
     for k, v in stats_dict.items():
         if isinstance(v, (int, float, np.number)) and pd.notna(v):
-            formatted_stats[k] = f"{v:.2f}" # Format numbers to 2 decimal places
+            formatted_stats[k] = f"{v:.2f}"  # Format numbers to 2 decimal places
         else:
-            formatted_stats[k] = v # Keep others as is (like Mode string)
-            
+            formatted_stats[k] = v  # Keep others as is (like Mode string)
+
     return formatted_stats
