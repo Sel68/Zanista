@@ -5,6 +5,10 @@ import io
 import matplotlib.pyplot as plt
 
 
+#Most of app.py is handling Streamlit UI and feature calling
+#Actual feature implementations are organized across the other three files.
+
+
 #importing features
 from preprocessing import (
     read_file,
@@ -45,7 +49,7 @@ if "uploaded_filename" not in st.session_state:
     st.session_state["uploaded_filename"] = None
 if (
     "model_trained_features" not in st.session_state
-):  # To store features used for training
+):  # store features used for training
     st.session_state["model_trained_features"] = None
 
 
@@ -104,11 +108,13 @@ with st.sidebar:
 st.title("ZANISTA Dashboard")
 
 if st.session_state.get("df") is not None:
-    #df is always the one from session state
+    #this ensures df is always the one from session state
     df = st.session_state["df"]
 
     tabs = st.tabs(["Preview", "Preprocess", "Visualize", "ML Model"])
 
+
+    #with each of: Preview, Preprocessing, Visualisation, ML
     # Data Preview Tab
     with tabs[0]:
         st.header("Data Preview")
@@ -141,6 +147,7 @@ if st.session_state.get("df") is not None:
             st.text(buffer.getvalue())
         else:
             st.warning("Dataframe is not loaded correctly.")
+
 
     # Preprocessing Tab
     with tabs[1]:
@@ -240,6 +247,7 @@ if st.session_state.get("df") is not None:
                         except Exception as e:
                             st.error(f"Failed to handle missing values: {e}")
 
+
         # Change Type Expander
         with st.expander("Change Data Type"):
             all_cols = df.columns.tolist()
@@ -253,6 +261,7 @@ if st.session_state.get("df") is not None:
                     "Category",
                     "Date/Time",
                 ]
+
                 new_type = st.selectbox("New type:", target_types, key="dtype_new")
                 if st.button(f"Convert", key="dtype_apply"):
                     try:
@@ -273,6 +282,7 @@ if st.session_state.get("df") is not None:
                         st.rerun()
                     except Exception as e:
                         st.error(f"Type conversion failed: {e}")
+
 
         # Outlier Removal Expander
         with st.expander("Remove Outliers (Z-Score)"):
@@ -305,6 +315,7 @@ if st.session_state.get("df") is not None:
                         st.error(f"Outlier removal failed: {e}")
             else:
                 st.info("No numeric columns available for outlier removal.")
+
 
         # Remove Columns Expander
         with st.expander("Remove Columns"):
@@ -348,6 +359,7 @@ if st.session_state.get("df") is not None:
                         st.error(f"Scaling failed: {e}")
             else:
                 st.info("No numeric columns available to scale.")
+
 
     # Visualization Tab
     with tabs[2]:
@@ -411,7 +423,7 @@ if st.session_state.get("df") is not None:
                     for c in all_cols_options
                     if c == "" or not pd.api.types.is_numeric_dtype(df.get(c))
                 ]  # Usually categorical for pie
-                y_options = numeric_cols_plot  # Optional numeric for values
+                y_options = numeric_cols_plot
                 color_options = [""]  # Color is implicit in pie chart
             elif viz_type == "Histogram":
                 x_label = "Column (Numeric):"
@@ -453,13 +465,13 @@ if st.session_state.get("df") is not None:
                     disabled=(viz_type == "Pie Chart"),
                 )
 
-            # Clean up selections (use None if empty string)
+            # Clean up selections; uses None if empty string
             x_col = None if x_col == "" else x_col
             y_col = None if y_col == "" else y_col
             color_col = None if color_col == "" else color_col
 
             if st.button("Generate Plot", key="gen_plot"):
-                # Basic validation
+                # basic validation
                 plot_possible = True
                 if not x_col:
                     st.error("Please select the primary column (X-axis or Categories).")
@@ -591,10 +603,9 @@ if st.session_state.get("df") is not None:
                                 st.session_state["model_trained_features"] = None
                                 st.session_state["ml_target_trained"] = None
 
-                    elif (
-                        ml_target and not task_type
-                    ):  # If target selected but task not identified (e.g., only 1 unique value)
-                        pass  # Warning already shown
+                    elif ml_target and not task_type:
+                        # If target selected but task not identified :(
+                        pass  # Warning already shown in feature imple
                     elif not ml_target:
                         st.info("Select a target variable to choose a model.")
             else:
@@ -615,8 +626,9 @@ if st.session_state.get("df") is not None:
             # Use the features stored from the training phase to build the form
             # These are the *original* features before transformation
             features_for_input = st.session_state["model_trained_features"]  #
-            # Get the current df to extract default values/options for the form
+            # Get the current df to extract default values for the form
             current_df_for_defaults = st.session_state.get("df")
+
 
             if features_for_input and current_df_for_defaults is not None:
                 with st.form(key="pred_form"):
@@ -691,7 +703,8 @@ if st.session_state.get("df") is not None:
                                     f"{feature}", key=f"pred_{feature}"
                                 )
                         else:
-                            # If a feature used in training is somehow missing now, add a placeholder. This shouldn't normally happen with the current logic.
+                            # If a feature used in training is somehow missing now, add a placeholder.
+                            # This shouldn't really happend w current feature imple
                             col_widget.text_input(
                                 f"{feature} (Missing?)",
                                 value="",
@@ -704,31 +717,24 @@ if st.session_state.get("df") is not None:
 
                     submitted = st.form_submit_button("Predict")
                     if submitted:
-                        # Create DataFrame from inputs
-                        pred_df = pd.DataFrame([pred_inputs])
+                        
+                        pred_df = pd.DataFrame([pred_inputs]) #dataframe from inputs
 
-                        # Important: Ensure the prediction DataFrame columns match the order of original features
-                        # The make_predictions function now expects the columns in the original order
+                        #ensuring prediction dataframe column matches order of orignal datafram. pred assumes so
                         pred_df = pred_df[features_for_input]  #
-
-                        # Basic type conversion based on the *current* dataframe's dtypes is less critical now
-                        # as imputation/encoding happens inside make_predictions based on stored info.
-                        # We'll skip the explicit conversion loop here.
 
                         # Make prediction using the model and the prepared DataFrame
                         try:
-                            prediction_result = make_predictions(
-                                model, pred_df, task
-                            )  #
+                            prediction_result = make_predictions(model, pred_df, task)
                             # Display the first prediction (assuming single input row)
-                            st.success(
-                                f"Predicted {target}: **{prediction_result[0]}**"
-                            )  #
+
+                            st.success(f"Predicted {target}: **{prediction_result[0]}**")
                         except Exception as e:
+
                             st.error(f"Prediction Failed: {e}")
                             st.error(
-                                "Ensure input values are appropriate for the model. Check logs if errors persist."
-                            )
+                                "Ensure input values are appropriate for the model. Check logs if errors persist.")
+                            
 
             else:
                 st.warning(
